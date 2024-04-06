@@ -13,10 +13,10 @@ A bash script for scraping phpbb forums in json.
 
 ## Supported links formats
 
-    http?(s)://forum.com/(.*/)?viewtopic.php.*[\&\?]t=[[:digit:]]+.*
-    http?(s)://forum.com/(.*/)?viewforum.php.*
-    http?(s)://forum.com/(.*/)?index.php.*
-    http?(s)://forum.com/.*
+    http(s)?://forum.com/(.*/)?viewtopic.php.*[\&\?]t=[[:digit:]]+.*
+    http(s)?://forum.com/(.*/)?viewforum.php.*
+    http(s)?://forum.com/(.*/)?index.php.*
+    http(s)?://forum.com/.*
 
 ## Json format
 

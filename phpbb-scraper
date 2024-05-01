@@ -23,26 +23,25 @@ get_topic() {
     {
     echo "$1" #link
     echo "$id" #id
-    echo "$(hgrep 'div #page-body; h[1-6] @l[1]; a href="\./viewtopic\.php.*" | "%i\n"' <<< "$t")" #title
-    echo "$(hgrep 'ul #nav-breadcrumbs; a; span itemprop | "%i\t", div #page-header; li .icon-home; a | "%i\t"' <<< "$t")" #path
+    echo "$(reliq 'div #page-body; B>h[1-6] [0]; a href=b>"./viewtopic.php" | "%i\n"' <<< "$t")" #title
+    echo "$(reliq 'ul #nav-breadcrumbs; a; span itemprop | "%i\t", div #page-header; li .icon-home; a | "%i\t"' <<< "$t")" #path
     while :
     do
-        for i in $(hgrep 'div #page-body; div id="p[0-9]*" | "%t\n"' <<< "$t")
-        do
-            {
-            echo "$(hgrep 'div id="p[0-9]*" @l[0] | "%(id)a\n"' <<< "$i" | sed 's/^p//')" #postid
-            echo "$(hgrep 'p .author | "%i\n"' <<< "$i" | sed -E 's/.*>//; s/.*;//; s/^ *//; s/^([a-z]* )+//')" #date
-            echo "$(hgrep 'div .content | "%i\n"' <<< "$i")" #content
-            echo "$(hgrep 'div .signature #sig[0-9]* | "%i\n"' <<< "$i")" #signature
-            echo "$(hgrep 'dl .postprofile #profile[0-9]*; dt @l[1]; img src | "%(src)a\n"' <<< "$i")" #avatar
-            echo "$(hgrep 'dl .postprofile #profile[0-9]*; dt @l[1]; a @M"<" | "%i\n"' <<< "$i")" #user
-            echo "$(hgrep 'dl .postprofile #profile[0-9]*; dt @l[1]; a href @M"<" | "%(href)a\n"' <<< "$i" | sed -E 's/.*[&;]u=([0-9]+).*/\1/')" #userid
-            echo "$(hgrep 'dl .postprofile #profile[0-9]*; dd @l[1] @M"^&nbsp;$" | "%i\n"' <<< "$i" | sed -E 's/<strong>([^<]*)<\/strong>/\1/g; s/ +:/:/; /<ul [^>]*class="profile-icons">/{s/.*<a href="([^"]*)" title="Site [^"]*".*/Site\1/;t;d}; /^[^<>]+:/!{s/^/Rank:/};s/: *//' | paste -sd '\v')" #userinfo
-            } | paste -sd '\t'
-        done
+        reliq '
+            div #page-body; div #B>"p[0-9]*"; {
+                . div #B>"p[0-9]*" l@[0] | "%(id)v\n" / sed "s/^p//",
+                . p .author | "%i\n" / sed "s/<\/time>$//;s/.*>//; s/.*;//; s/^ *//; s/^([a-z]* )+//" "E",
+                . div .content | "%i\n",
+                . div .signature #B>sig[0-9]* | "%i\n",
+                . dl .postprofile #B>profile[0-9]*; dt l@[1]; img src | "%(src)v\n",
+                . dl .postprofile #B>profile[0-9]*; dt l@[1]; a c@[0] | "%i\n",
+                . dl .postprofile #B>profile[0-9]*; dt l@[1]; a href c@[0] | "%(href)v\n" / sed "s/.*[&;]u=([0-9]+).*/\1/" "E",
+                . dl .postprofile #B>profile[0-9]*; dd l@[1] m@vf>"&nbsp;" | "%i\n" / sed "s/<strong>([^<]*)<\/strong>/\1/g; s/ +:/:/; /<ul [^>]*class=\"profile-icons\">/{s/.*<a href=\"([^\"]*)\" title=\"Site [^\"]*\".*/Site\1/;t;d}; /^[^<>]+:/!{s/^/Rank:/};s/: *//" "E" tr "\n" "\v" echo "" "\n"
+            } | tr "\n" "\t" echo "" "\n"
+        ' <<< "$t"
 
-        t2="$(hgrep 'a href rel=next | "%(href)a\n"' <<< "$t" | sed 's/^\.\///;s/&amp;/\&/g;q')"
-        [ -z "$t2" ] && t2="$(hgrep -E 'div .topic-actions; div .pagination @l[1]; span @l[1]; (a|strong) -href=# | "%(href)a\n"' <<< "$t" | sed -n '/^$/{N;s/\n//;s/&amp;/\&/g;s/^\.\///;p;q}')"
+        t2="$(reliq 'a href rel=next | "%(href)v\n" / sed "s/^\.\///;s/&amp;/\&/g;q"' <<< "$t")"
+        [ -z "$t2" ] && t2="$(reliq 'div .topic-actions; div .pagination l@[1]; span l@[1]; E>(a|strong) -href=# | "%(href)v\n" / sed "/^$/{N;s/\n//;s/&amp;/\&/g;s/^\.\///;p;q}" "n"' <<< "$t")"
         next="$url/$t2"
         grep -q '&start=[0-9]*$' <<< "$next" || break
         echo "$next" >&2
@@ -62,7 +61,7 @@ get_topic() {
             ("avatar"):.[4],
             ("user"):.[5],
             ("userid"):(.[6]),
-            ("userinfo"):(.[7] | split("") | map( split("") | {
+            ("userinfo"):(.[7] | split("")[:-1] | map( split("") | {
                 ("key"):.[0],
                 ("value"):.[1]
             }))
@@ -80,32 +79,32 @@ get_topic() {
 #    {
 #    echo "$1" #link
 #    echo "$id" #id
-#    echo "$(hgrep -E '.* .maintitle; a href="(viewtopic\.php|topic[-_]).*" | "%i\n",
-#        .* #pageheader; h[1-6]; .* @M"<" | "%i\n",
-#        div #page-body; h[1-6] @l[1]; a href="\./viewtopic\.php.*" | "%i\n"' <<< "$t" | sed 's/<[^>]*>//g;q')" #title
-#    echo "$(hgrep -E 'td -.catHead; .* .nav @m"(->|&raquo;)"; a -href="#.*" @l[1] @M"<" | "%i\t",
-#        {.* .breadcrumbs, .* .bc-header} ; a -href="#.*" @l[1] | "%i\t"' <<< "$t" | awk -v RS='\t' '{ if (i[$0]) {exit} else {i[$0]=1;printf("%s\t",$0)}}')" #path
+#    echo "$(reliq '* .maintitle; a href=E>"(viewtopic\.php|topic[-_]).*" | "%i\n",
+#        * #pageheader; h[1-6]; * c@[0] | "%i\n",
+#        div #page-body; h[1-6] @l[1]; a href=b>"./viewtopic\.php" | "%i\n"' <<< "$t" | sed 's/<[^>]*>//g;q')" #title
+#    echo "$(reliq 'td -.catHead; * .nav m@E>"(->|&raquo;)"; a -href=b>"#" l@[1] c@[0] | "%i\t",
+#        {* .breadcrumbs, * .bc-header} ; a -href=b>"#" l@[1] | "%i\t"' <<< "$t" | awk -v RS='\t' '{ if (i[$0]) {exit} else {i[$0]=1;printf("%s\t",$0)}}')" #path
 #
-#    #hgrep -E 'table .forumline; tr @l[1] @m"<td class=\"row[0-9]\""' <<< "$t" | sed 'N;s/\n/ /' 1 2 4 10
+#    #reliq 'table .forumline; tr l@[1] m@B>"<td class=B>\"row[0-9]\""' <<< "$t" | sed 'N;s/\n/ /' 1 2 4 10
 #
 #
 #
-#    for i in $(hgrep -E 'table .forumline; tr @l[1] @m"<td class=\"row[0-9]\""' <<< "$t" | sed 'N;s/\n/ /') 
+#    for i in $(reliq 'table .forumline; tr l@[1] m@B>"<td class=\"row[0-9]\""' <<< "$t" | sed 'N;s/\n/ /') 
 #    do
-#        hgrep 'a name="[0-9]*" | "%(name)a\n"' <<< "$i" #postid
-#        hgrep 'span .postdetails @M"<a" | "%i\n"' <<< "$i" | sed 's/^[^:]*: //;s/<.*//' #date
-#        t2="$(hgrep 'span .postbody | "%i\n"' <<< "$i")"
+#        reliq 'a name=B>"[0-9]*" | "%(name)v\n"' <<< "$i" #postid
+#        reliq 'span .postdetails m@v>"<a" | "%i\n"' <<< "$i" | sed 's/^[^:]*: //;s/<.*//' #date
+#        t2="$(reliq 'span .postbody | "%i\n"' <<< "$i")"
 #        head -n 1 <<< "$t2" #content
 #        tail -n 1 <<< "$t2" #signature
-#        hgrep 'span .gensmall' <<< "$i" #note
-#        hgrep 'span .postdetails; img src | "%(src)a\n"' <<< "$i" #avatar
-#        hgrep -E 'span .name; (b|strong) | "%i\n"' <<< "$i" #user
-#        hgrep -E 'span .postdetails; a href=".*(&amp;|&)u=[0-9]*.*" | "%(href)a\n"' <<< "$i" | sed -E 's/.*(&amp;|&)u=([0-9]*).*/\2/;q' #userid
-#        hgrep -E 'span .postdetails @m"<a" | "%i\n"' <<< "$i" | sed -E 's/^ *<br \/>//;s/<br \/> *$//;s/(<br \/>)+/\t/g;s/(^|\t)<[^\t]*\t//; s/<!--[^>]*-->//g; s/(^|\t)([^\t:]+(\t|$))/\1Rank: \2/;s/(^|\t)([^:]+): ([^\t]+)/\1\2^G\3/g' #userinfo
+#        reliq 'span .gensmall' <<< "$i" #note
+#        reliq 'span .postdetails; img src | "%(src)v\n"' <<< "$i" #avatar
+#        reliq 'span .name; E>(b|strong) | "%i\n"' <<< "$i" #user
+#        reliq 'span .postdetails; a href=E>".*(&amp;|&)u=[0-9]*.*" | "%(href)v\n"' <<< "$i" | sed -E 's/.*(&amp;|&)u=([0-9]*).*/\2/;q' #userid
+#        reliq 'span .postdetails m@"<a" | "%i\n"' <<< "$i" | sed -E 's/^ *<br \/>//;s/<br \/> *$//;s/(<br \/>)+/\t/g;s/(^|\t)<[^\t]*\t//; s/<!--[^>]*-->//g; s/(^|\t)([^\t:]+(\t|$))/\1Rank: \2/;s/(^|\t)([^:]+): ([^\t]+)/\1\2^G\3/g' #userinfo
 #    done
 #
-#    hgrep -E 'div #pagecontent; table @l[1]; tr ."row[0-9]" @l[1]' | sed 'N;N;s/\n/ /g'
-#    hgrep -E '(span|div) .postbody' <<< "$i"
+#    reliq 'div #pagecontent; table l@[1]; tr .B>"row[0-9]" l@[1]' | sed 'N;N;s/\n/ /g'
+#    reliq 'E>(span|div) .postbody' <<< "$i"
 # #not implemented yet}
 
 get_forum() {
@@ -114,17 +113,18 @@ get_forum() {
     t="$(ucurl "$1" | tr -d '\n\t\r')"
     while :
     do
-        for i in $(hgrep 'li; a .forumtitle href | "%(href)a\n"' <<< "$t" | sed 's/^\.\///;s/&amp;/\&/g')
+        for i in $(reliq 'li; a .forumtitle href | "%(href)v\n" / sed "s/^\.\///;s/&amp;/\&/g"' <<< "$t")
         do
             get_forum "$url/$i"
         done
-        for i in $(hgrep 'li; a .topictitle href | "%(href)a\n"' <<< "$t" | sed 's/^\.\///;s/&amp;/\&/g')
+        for i in $(reliq 'li; a .topictitle href | "%(href)v\n" / sed "s/^\.\///;s/&amp;/\&/g"' <<< "$t")
         do
             [ "$(jobs | wc -l)" -gt "$maxprocs" ] && wait %%
-            get_topic "$url/$i" &
+            echo "$url/$i"
+            #get_topic "$url/$i" &
         done
-        t2="$(hgrep 'a href rel=next | "%(href)a\n"' <<< "$t" | sed 's/^\.\///;s/&amp;/\&/g;q')"
-        [ -z "$t2" ] && t2="$(hgrep -E 'div .topic-actions; div .pagination @l[1]; span @l[1]; (a|strong) -href=# | "%(href)a\n"' <<< "$t" | sed -n '/^$/{N;s/\n//;s/&amp;/\&/g;s/^\.\///;p;q}')"
+        t2="$(reliq 'a href rel=next | "%(href)v\n" / sed "s/^\.\///;s/&amp;/\&/g;q"' <<< "$t")"
+        [ -z "$t2" ] && t2="$(reliq 'div .topic-actions; div .pagination l@[1]; span l@[1]; E>(a|strong) -href=# | "%(href)v\n" / sed "/^$/{N;s/\n//;s/&amp;/\&/g;s/^\.\///;p;q}" "n"' <<< "$t")"
         next="$url/$t2"
         grep -q '&start=[0-9]*$' <<< "$next" || break
         echo "$next" >&2

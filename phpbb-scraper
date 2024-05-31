@@ -21,23 +21,23 @@ get_topic() {
     local next path
 
     {
-    echo "$1" #link
-    echo "$id" #id
-    echo "$(reliq 'div #page-body; B>h[1-6] [0]; a href=b>"./viewtopic.php" | "%i\n"' <<< "$t")" #title
-    echo "$(reliq 'ul #nav-breadcrumbs; a; span itemprop | "%i\t", div #page-header; li .icon-home; a | "%i\t"' <<< "$t")" #path
+    reliq '
+        .title div #page-body; B>h[1-6] [0]; a href=b>"./viewtopic.php" | "%i",
+        .path.a { ul #nav-breadcrumbs; a; span itemprop | "%i\n", div #page-header; li .icon-home; a | "%i\n" }
+    ' <<< "$t"
     while :
     do
         reliq '
-            div #page-body; div #B>"p[0-9]*"; {
-                . div #B>"p[0-9]*" l@[0] | "%(id)v\n" / sed "s/^p//",
-                . p .author | "%i\n" / sed "s/<\/time>$//;s/.*>//; s/.*;//; s/^ *//; s/^([a-z]* )+//" "E",
-                . div .content | "%i\n",
-                . div .signature #B>sig[0-9]* | "%i\n",
-                . dl .postprofile #B>profile[0-9]*; dt l@[1]; img src | "%(src)v\n",
-                . dl .postprofile #B>profile[0-9]*; dt l@[1]; a c@[0] | "%i\n",
-                . dl .postprofile #B>profile[0-9]*; dt l@[1]; a href c@[0] | "%(href)v\n" / sed "s/.*[&;]u=([0-9]+).*/\1/" "E",
-                . dl .postprofile #B>profile[0-9]*; dd l@[1] m@vf>"&nbsp;" | "%i\n" / sed "s/<strong>([^<]*)<\/strong>/\1/g; s/ +:/:/; /<ul [^>]*class=\"profile-icons\">/{s/.*<a href=\"([^\"]*)\" title=\"Site [^\"]*\".*/Site\1/;t;d}; /^[^<>]+:/!{s/^/Rank:/};s/: *//" "E" tr "\n" "\v" echo "" "\n"
-            } | tr "\n" "\t" echo "" "\n"
+            .posts div #page-body; div #B>"p[0-9]*"; {
+                .postid.u div #B>"p[0-9]*" l@[0] | "%(id)v" / sed "s/^p//",
+                .date p .author | "%i" / sed "s/<\/time>$//;s/.*>//; s/.*;//; s/^ *//; s/^([a-z]* )+//" "E",
+                .content div .content | "%i",
+                .signature div .signature #B>sig[0-9]* | "%i",
+                .avatar dl .postprofile #B>profile[0-9]*; dt l@[1]; img src | "%(src)v",
+                .user dl .postprofile #B>profile[0-9]*; dt l@[1]; a c@[0] | "%i",
+                .userid dl .postprofile #B>profile[0-9]*; dt l@[1]; a href c@[0] | "%(href)v" / sed "s/.*[&;]u=([0-9]+).*/\1/" "E",
+                .userinfo.a dl .postprofile #B>profile[0-9]*; dd l@[1] m@vf>"&nbsp;" | "%i\n" / sed "s/<strong>([^<]*)<\/strong>/\1/g; s/ +:/:/; /<ul [^>]*class=\"profile-icons\">/{s/.*<a href=\"([^\"]*)\" title=\"Site [^\"]*\".*/Site\t\1/;t;d}; /^[^<>]+:/!{s/^/Rank:/};s/: */\t/" "E"
+            } |
         ' <<< "$t"
 
         t2="$(reliq 'a href rel=next | "%(href)v\n" / sed "s/^\.\///;s/&amp;/\&/g;q"' <<< "$t")"
@@ -47,25 +47,15 @@ get_topic() {
         echo "$next" >&2
         t="$(ucurl "$next" | tr -d '\t\n\r\a\v')"
     done
-    } | jq -RnMcs '
-        (inputs | split("\n")) as $lines |
-        .["link"]=$lines[0] |
-        .["id"]=$lines[1] |
-        .["title"]=$lines[2] |
-        .["path"]=($lines[3] | split("\t"))[:-1] |
-        .["posts"]=($lines[4:-1] | map(split("\t") | {
-            ("postid"):.[0],
-            ("date"):.[1],
-            ("content"):.[2],
-            ("signature"):.[3],
-            ("avatar"):.[4],
-            ("user"):.[5],
-            ("userid"):(.[6]),
-            ("userinfo"):(.[7] | split("")[:-1] | map( split("") | {
-                ("key"):.[0],
-                ("value"):.[1]
-            }))
-        }))' > "$id"
+    } | jq -srcM --arg 'link' "$1" --arg 'id' "$id" '
+        {"link":$link,"id":$id}+.[0]+{
+            "posts":(.[1:] | map(
+                .posts[] | .userinfo |= map(. | split("\t") | {
+                    "key":.[0],
+                    "value":.[1]
+                }
+            )
+        ))}' > "$id"
 }
 
 #get_topic_1() {
@@ -89,7 +79,7 @@ get_topic() {
 #
 #
 #
-#    for i in $(reliq 'table .forumline; tr l@[1] m@B>"<td class=\"row[0-9]\""' <<< "$t" | sed 'N;s/\n/ /') 
+#    for i in $(reliq 'table .forumline; tr l@[1] m@B>"<td class=\"row[0-9]\""' <<< "$t" | sed 'N;s/\n/ /')
 #    do
 #        reliq 'a name=B>"[0-9]*" | "%(name)v\n"' <<< "$i" #postid
 #        reliq 'span .postdetails m@v>"<a" | "%i\n"' <<< "$i" | sed 's/^[^:]*: //;s/<.*//' #date
@@ -120,8 +110,7 @@ get_forum() {
         for i in $(reliq 'li; a .topictitle href | "%(href)v\n" / sed "s/^\.\///;s/&amp;/\&/g"' <<< "$t")
         do
             [ "$(jobs | wc -l)" -gt "$maxprocs" ] && wait %%
-            echo "$url/$i"
-            #get_topic "$url/$i" &
+            get_topic "$url/$i" &
         done
         t2="$(reliq 'a href rel=next | "%(href)v\n" / sed "s/^\.\///;s/&amp;/\&/g;q"' <<< "$t")"
         [ -z "$t2" ] && t2="$(reliq 'div .topic-actions; div .pagination l@[1]; span l@[1]; E>(a|strong) -href=# | "%(href)v\n" / sed "/^$/{N;s/\n//;s/&amp;/\&/g;s/^\.\///;p;q}" "n"' <<< "$t")"

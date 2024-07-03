@@ -1,3 +1,7 @@
+# Archive
+
+Any further development has been transfered to [forumscraper](https://github.com/TUVIMEN/forumscraper).
+
 # phpbb-scraper
 
 A bash script for scraping phpbb forums in json.
@@ -8,7 +12,7 @@ A bash script for scraping phpbb forums in json.
  - [jq](https://github.com/stedolan/jq)
 
 ## Installation
-    
+
     install -m 755 phpbb-scraper /usr/bin
 
 ## Supported links formats
@@ -61,7 +65,7 @@ Download forum into current directory using 4 processes
 
     phpbb-scraper -p 4 'https://stilldcf.com/forums/viewforum.php?f=3'
 
-Download topic by irregular topic url into DIR 
+Download topic by irregular topic url into DIR
 
     phpbb-scraper -d DIR -t 'https://forum.com/abcdef/loop/'
 
